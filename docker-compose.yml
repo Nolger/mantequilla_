@@ -1,0 +1,37 @@
+services:
+  # Definición del servicio de base de datos MySQL
+  db:
+    image: mysql:8.0
+    container_name: mantequilla_mysql_db # Nombre del contenedor
+    restart: always # Reiniciar el contenedor automáticamente si falla
+    environment:
+      # Estas variables de entorno se utilizan para inicializar la base de datos MySQL
+      MYSQL_DATABASE: ${DB_NAME:-restaurant_db} # Nombre de la base de datos a crear
+      MYSQL_USER: ${DB_USER:-admin_restaurante} # Usuario para la base de datos
+      MYSQL_PASSWORD: ${DB_PASSWORD:-password123} # Contraseña para el usuario
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-root_password123} # Contraseña para el usuario root de MySQL (importante)
+    ports:
+      # Mapea el puerto 3306 del contenedor (puerto estándar de MySQL) al puerto de la máquina host
+      # Formato: "HOST_PORT:CONTAINER_PORT"
+      - "${DB_PORT:-3306}:3306"
+    volumes:
+      # Persiste los datos de MySQL en un volumen nombrado
+      - mysql_data:/var/lib/mysql
+      # Opcional: Montar un script de inicialización SQL personalizado
+      # - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      # Comprueba el estado del servicio de base de datos MySQL
+      test: ["CMD", "mysqladmin" ,"ping", "-h", "localhost", "-u${DB_USER:-admin_restaurante}", "-p${DB_PASSWORD:-password123}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s # Tiempo para que el servicio inicie antes de empezar los healthchecks
+
+# Definición de volúmenes nombrados
+volumes:
+  mysql_data: # El volumen donde se almacenarán los datos de MySQL
+
+# Nota sobre las variables de entorno:
+# El uso de ${VARIABLE:-default_value} permite que estas variables sean sobrescritas
+# por un archivo .env en el mismo directorio, o por variables de entorno del sistema.
+# Si no se proveen, se usarán los valores por defecto especificados.
