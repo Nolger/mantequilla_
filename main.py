@@ -10,6 +10,7 @@ try:
     from app.views import admin_dashboard_view
     from app.views import employee_dashboard_view
     from app.views import cook_dashboard_view
+    from app.views import waiter_dashboard_view
 except ImportError as e:
     # Manejo de error si las importaciones fallan al inicio
     root_error = tk.Tk()
@@ -66,7 +67,11 @@ class MainApplication:
                 dashboard_to_open = cook_dashboard_view.CookDashboardView(self.current_user_info)
             else:
                 messagebox.showerror("Error de Carga", "No se pudo cargar el Dashboard de Cocina.")
-        
+        elif rol == "mesero": # <--- NUEVA CONDICIÓN
+            if waiter_dashboard_view.WaiterDashboardView:
+                dashboard_to_open = waiter_dashboard_view.WaiterDashboardView(self.current_user_info)
+            else:
+                messagebox.showerror("Error de Carga", "No se pudo cargar el Dashboard de Mesero.")       
         elif rol in ["empleado", "mesero"]: # Otros roles de empleado (sin dashboard de cocina)
             if employee_dashboard_view.EmployeeDashboardView:
                 dashboard_to_open = employee_dashboard_view.EmployeeDashboardView(self.current_user_info)

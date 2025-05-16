@@ -16,6 +16,22 @@ from . import menu_model   # '.' Se refiere al paquete actual ('models')
 # Solo se muestra el esqueleto de las funciones para brevedad, pero necesitas el cuerpo completo.
 
 
+def get_active_orders_for_waiter(employee_id_mesero):
+    """
+    Obtiene las comandas activas (no facturadas ni canceladas) para un mesero específico.
+    """
+    if not db: return None
+    query = """
+    SELECT c.*, m.id_mesa as nombre_mesa -- O cualquier otro dato de la mesa que quieras
+    FROM Comanda c
+    JOIN Mesa m ON c.id_mesa = m.id_mesa
+    WHERE c.id_empleado_mesero = %s 
+    AND c.estado_comanda NOT IN ('facturada', 'cancelada')
+    ORDER BY c.fecha_hora_apertura DESC
+    """
+    return db.fetch_all(query, (employee_id_mesero,))
+
+
 def get_orders_history(start_date=None, end_date=None, table_id=None, 
                        employee_id=None, customer_id=None, order_status=None, limit=100):
     """

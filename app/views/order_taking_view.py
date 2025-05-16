@@ -14,6 +14,7 @@ class OrderTakingView(ttk.Frame):
         
         self.current_selected_table_id = None
         self.current_active_order_id = None # ID de la comanda activa para la mesa seleccionada
+        self.selected_order_detail_id_for_status = None
 
         if not all([table_model, menu_model, order_model, auth_logic]):
             error_label = ttk.Label(self, text="Error crítico: Módulos esenciales no disponibles.", foreground="red")
@@ -88,10 +89,14 @@ class OrderTakingView(ttk.Frame):
         
         self.send_to_kitchen_btn = ttk.Button(parent_frame, text="Enviar a Cocina", command=self._send_order_to_kitchen, state=tk.DISABLED)
         self.send_to_kitchen_btn.pack(pady=3, fill=tk.X)
+
+        # ASEGÚRATE DE QUE ESTA LÍNEA ESTÉ PRESENTE Y CORRECTA:
+        self.request_bill_btn = ttk.Button(parent_frame, text="Solicitar Cuenta", command=self._request_bill, state=tk.DISABLED)
+        self.request_bill_btn.pack(pady=3, fill=tk.X)
         
-        # Más botones (facturar, cancelar comanda) se añadirían aquí
-        # self.bill_order_btn = ttk.Button(parent_frame, text="Facturar Comanda", command=self._bill_order, state=tk.DISABLED)
-        # self.bill_order_btn.pack(pady=3, fill=tk.X)
+        # Botón para cancelar comanda podría ir aquí
+        # self.cancel_order_btn = ttk.Button(parent_frame, text="Cancelar Comanda", command=self._cancel_order, state=tk.DISABLED)
+        # self.cancel_order_btn.pack(pady=3, fill=tk.X)
 
     def _create_menu_dishes_widget(self, parent_frame):
         # Treeview para mostrar los platos del menú
@@ -132,9 +137,10 @@ class OrderTakingView(ttk.Frame):
 
     def _create_current_order_display_widget(self, parent_frame):
         # Treeview para mostrar los ítems de la comanda actual
-        order_cols = ("cantidad", "nombre_plato", "precio_unitario", "subtotal_item", "estado_plato", "observaciones")
+        order_cols = ("id_detalle_comanda", "cantidad", "nombre_plato", "precio_unitario", "subtotal_item", "estado_plato", "observaciones") # Asegúrate de incluir id_detalle_comanda si lo usas como iid
         self.current_order_treeview = ttk.Treeview(parent_frame, columns=order_cols, show="headings", selectmode="browse", height=10)
         
+        self.current_order_treeview.heading("id_detalle_comanda", text="ID Det.") # Si lo usas como iid, es bueno tenerlo visible o al menos definido
         self.current_order_treeview.heading("cantidad", text="Cant.")
         self.current_order_treeview.heading("nombre_plato", text="Plato")
         self.current_order_treeview.heading("precio_unitario", text="P. Unit.")
@@ -142,26 +148,49 @@ class OrderTakingView(ttk.Frame):
         self.current_order_treeview.heading("estado_plato", text="Estado Plato")
         self.current_order_treeview.heading("observaciones", text="Obs.")
 
+        self.current_order_treeview.column("id_detalle_comanda", width=60, anchor="center", stretch=tk.NO) # Ajustar ancho
         self.current_order_treeview.column("cantidad", width=40, anchor="center")
         self.current_order_treeview.column("nombre_plato", width=180, anchor="w")
         self.current_order_treeview.column("precio_unitario", width=70, anchor="e")
         self.current_order_treeview.column("subtotal_item", width=80, anchor="e")
         self.current_order_treeview.column("estado_plato", width=100, anchor="w")
         self.current_order_treeview.column("observaciones", width=150, anchor="w")
-        self.current_order_treeview.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
 
+        # 1. Crear el Scrollbar
         order_scrollbar = ttk.Scrollbar(parent_frame, orient=tk.VERTICAL, command=self.current_order_treeview.yview)
+
+        # 2. Configurar el Treeview para usar el Scrollbar
         self.current_order_treeview.configure(yscrollcommand=order_scrollbar.set)
+
+        # 3. Empaquetar el Treeview (a la izquierda)
+        self.current_order_treeview.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        
+        # 4. Empaquetar el Scrollbar (a la derecha, llenando verticalmente)
         order_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
 
-        # Aquí podrías añadir botones para modificar/eliminar ítems de la comanda
-        # y un display para el total de la comanda.
-        total_frame = ttk.Frame(parent_frame)
-        total_frame.pack(fill=tk.X, pady=5)
-        ttk.Label(total_frame, text="Total Comanda: $").pack(side=tk.LEFT)
-        ttk.Label(total_frame, textvariable=self.order_total_var, font=("Arial", 12, "bold")).pack(side=tk.LEFT)
+        # 5. Vincular el evento de selección
+        self.current_order_treeview.bind("<<TreeviewSelect>>", self._on_order_item_selected)
 
+        # Frame para acciones sobre ítems de la comanda y total
+        item_actions_total_frame = ttk.Frame(parent_frame)
+        item_actions_total_frame.pack(fill=tk.X, pady=5) # Empaquetar debajo del treeview/scrollbar
 
+         # Botón para marcar plato como entregado
+        self.mark_delivered_btn = ttk.Button(item_actions_total_frame, text="Marcar Plato Entregado", command=self._mark_selected_item_as_delivered, state=tk.DISABLED)
+        self.mark_delivered_btn.pack(side=tk.LEFT, padx=5)
+
+        # Labels para el total
+        total_label_text = ttk.Label(item_actions_total_frame, text="Total Comanda: $")
+        total_label_text.pack(side=tk.LEFT, padx=(20,0)) 
+        total_label_value = ttk.Label(item_actions_total_frame, textvariable=self.order_total_var, font=("Arial", 12, "bold"))
+        total_label_value.pack(side=tk.LEFT)
+
+        # ELIMINA ESTAS LÍNEAS REDUNDANTES DE TOTAL:
+        # total_frame = ttk.Frame(parent_frame)
+        # total_frame.pack(fill=tk.X, pady=5)
+        # ttk.Label(total_frame, text="Total Comanda: $").pack(side=tk.LEFT)
+        # ttk.Label(total_frame, textvariable=self.order_total_var, font=("Arial", 12, "bold")).pack(side=tk.LEFT)
+        
     def _load_initial_data(self):
         self._load_tables_to_listbox()
         self._load_menu_to_treeview()
@@ -219,12 +248,18 @@ class OrderTakingView(ttk.Frame):
         self.open_order_btn.config(state=tk.NORMAL)
         self._load_active_order_for_selected_table()
 
+        self.request_bill_btn.config(state=tk.DISABLED) # Deshabilitar al cambiar de mesa
+        self.mark_delivered_btn.config(state=tk.DISABLED)
+        self._load_active_order_for_selected_table()
+
 
     def _load_active_order_for_selected_table(self):
         self._clear_current_order_display()
         self.current_active_order_id = None
         self.send_to_kitchen_btn.config(state=tk.DISABLED)
         self.add_dish_btn.config(state=tk.DISABLED)
+        self.request_bill_btn.config(state=tk.DISABLED)
+        self.mark_delivered_btn.config(state=tk.DISABLED)
 
 
         if not self.current_selected_table_id or not order_model:
@@ -236,9 +271,11 @@ class OrderTakingView(ttk.Frame):
             print(f"Comanda activa encontrada: {self.current_active_order_id} para mesa {self.current_selected_table_id}")
             self._display_order_details(self.current_active_order_id)
             self.open_order_btn.config(text="Ver Comanda Actual")
+            current_order_status = active_orders[0]['estado_comanda']
             if active_orders[0]['estado_comanda'] == 'abierta':
                  self.send_to_kitchen_btn.config(state=tk.NORMAL)
                  self.add_dish_btn.config(state=tk.NORMAL) # Permitir añadir platos si está abierta
+                 self.request_bill_btn.config(state=tk.NORMAL)
 
         else:
             print(f"No hay comanda activa para la mesa {self.current_selected_table_id}.")
@@ -351,14 +388,80 @@ class OrderTakingView(ttk.Frame):
             
             # Actualizar estado de botones según estado de la comanda
             order_status = order_data.get('estado_comanda', 'abierta')
+            if order_status in ['en preparacion', 'lista para servir', 'servida']:
+                self.request_bill_btn.config(state=tk.NORMAL)
+            else:
+                self.request_bill_btn.config(state=tk.DISABLED)
+            
             if order_status == 'abierta':
                 self.send_to_kitchen_btn.config(state=tk.NORMAL)
                 self.add_dish_btn.config(state=tk.NORMAL)
-            else: # 'en preparacion', 'servida', etc.
+            else:
                 self.send_to_kitchen_btn.config(state=tk.DISABLED)
-                self.add_dish_btn.config(state=tk.DISABLED) # No se pueden añadir más platos
-        elif order_data is None:
-            messagebox.showerror("Error", f"No se pudo cargar la comanda con ID {order_id_to_display}.")
+                self.add_dish_btn.config(state=tk.DISABLED)
+        
+        self.mark_delivered_btn.config(state=tk.DISABLED) # Resetear al cargar comanda
+
+    def _on_order_item_selected(self, event=None): # <--- NUEVA FUNCIÓN
+        selected = self.current_order_treeview.selection()
+        if selected:
+            item_data = self.current_order_treeview.item(selected[0])
+            self.selected_order_detail_id_for_status = item_data['values'][0] # Asumiendo que el ID_Detalle está en la primera columna
+            current_item_status = item_data['values'][4] # Asumiendo que el estado del plato es la quinta columna
+
+            # Habilitar "Marcar Entregado" si el plato está 'listo'
+            if current_item_status == 'listo':
+                self.mark_delivered_btn.config(state=tk.NORMAL)
+            else:
+                self.mark_delivered_btn.config(state=tk.DISABLED)
+        else:
+            self.selected_order_detail_id_for_status = None
+            self.mark_delivered_btn.config(state=tk.DISABLED)
+
+    def _mark_selected_item_as_delivered(self): # <--- NUEVA FUNCIÓN
+        if not self.selected_order_detail_id_for_status or not order_model:
+            messagebox.showwarning("Sin Selección", "Seleccione un plato de la comanda que esté 'listo'.")
+            return
+
+        if messagebox.askyesno("Confirmar Entrega", 
+                               f"¿Marcar el plato seleccionado como 'ENTREGADO' al cliente?"):
+            result = order_model.update_order_item_status(self.selected_order_detail_id_for_status, 'entregado')
+            if result is not None and result > 0:
+                messagebox.showinfo("Éxito", "Plato marcado como 'entregado'.")
+                if self.current_active_order_id: # Recargar detalles de la comanda actual
+                    self._display_order_details(self.current_active_order_id)
+            else:
+                messagebox.showerror("Error", "No se pudo actualizar el estado del plato a 'entregado'.")
+
+    def _request_bill(self): # <--- NUEVA FUNCIÓN
+        if not self.current_active_order_id or not order_model:
+            messagebox.showwarning("Sin Comanda", "No hay una comanda activa para solicitar la cuenta.")
+            return
+        
+        # Podrías verificar si todos los platos están entregados antes de permitir esto
+        # order_data = order_model.get_order_by_id(self.current_active_order_id)
+        # all_delivered = True
+        # if order_data and order_data.get('detalles'):
+        #     for item in order_data['detalles']:
+        #         if item['estado_plato'] not in ['entregado', 'cancelado']:
+        #             all_delivered = False
+        #             break
+        # if not all_delivered:
+        #     messagebox.showwarning("Platos Pendientes", "Aún hay platos sin entregar en esta comanda.")
+        #     return
+
+        if messagebox.askyesno("Solicitar Cuenta", 
+                               f"¿Desea marcar la comanda {self.current_active_order_id} como 'servida' y lista para facturar?"):
+            # Cambiamos el estado de la comanda a 'servida' (o un nuevo estado 'lista_para_facturar')
+            # El estado 'servida' puede ser suficiente.
+            result = order_model.update_order_status(self.current_active_order_id, 'servida')
+            if result is not None and result > 0:
+                messagebox.showinfo("Cuenta Solicitada", f"Comanda {self.current_active_order_id} marcada como 'servida'.\nLista para el proceso de facturación.")
+                self._display_order_details(self.current_active_order_id) # Recargar para ver estado y deshabilitar botones
+                self.request_bill_btn.config(state=tk.DISABLED) # Ya se solicitó
+                # Otros botones como añadir plato, enviar a cocina también deberían estar deshabilitados.
+            else:
+                messagebox.showerror("Error", "No se pudo actualizar el estado de la comanda.")
 
 
     def _send_order_to_kitchen(self):
