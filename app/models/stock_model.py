@@ -126,6 +126,48 @@ def add_or_update_ingredient_as_product(id_producto, initial_quantity=0.0):
     params = (id_ingrediente, id_producto, initial_quantity, datetime.datetime.now())
     return db.execute_query(query, params)
 
+
+def get_stock_movements_history(ingredient_id=None, start_date=None, end_date=None, movement_type=None, limit=100):
+    """
+    Obtiene el historial de movimientos de stock, con filtros opcionales.
+    # ... (cuerpo de la función como te la di) ...
+    """
+    if not db: return None
+    
+    query_base = """
+    SELECT ms.*, p.nombre as nombre_ingrediente, e.nombre as nombre_empleado, e.apellido as apellido_empleado
+    FROM MovimientoStock ms
+    JOIN Ingrediente i ON ms.id_ingrediente = i.id_ingrediente
+    JOIN Producto p ON i.id_producto = p.id_producto
+    LEFT JOIN Empleados e ON ms.id_empleado_responsable = e.id_empleado
+    """
+    
+    conditions = []
+    params = []
+
+    if ingredient_id:
+        conditions.append("ms.id_ingrediente = %s")
+        params.append(ingredient_id)
+    if start_date:
+        conditions.append("ms.fecha_hora >= %s")
+        params.append(start_date)
+    if end_date:
+        conditions.append("ms.fecha_hora <= %s")
+        params.append(end_date)
+    if movement_type:
+        conditions.append("ms.tipo_movimiento = %s")
+        params.append(movement_type)
+        
+    if conditions:
+        query_base += " WHERE " + " AND ".join(conditions)
+        
+    query_base += " ORDER BY ms.fecha_hora DESC, ms.id_movimiento DESC"
+    if limit:
+        query_base += " LIMIT %s"
+        params.append(limit)
+        
+    return db.fetch_all(query_base, tuple(params))
+
 def get_low_stock_ingredients_summary(limit=5):
     """
     Obtiene un resumen de los ingredientes con stock bajo o igual al mínimo.
@@ -172,6 +214,37 @@ def get_ingredient_by_id(ingredient_id_value):
     WHERE i.id_ingrediente = %s
     """
     return db.fetch_one(query, (ingredient_id_value,))
+
+def get_recent_stock_movements_summary(limit=5):
+    """
+    Obtiene un resumen de los movimientos de stock más recientes.
+    Args:
+        limit (int): Número máximo de movimientos a devolver.
+    Returns:
+        list: Lista de diccionarios con los movimientos recientes, o None si hay error.
+    """
+    # Simplemente llama a la función de historial con un límite y sin otros filtros
+    return get_stock_movements_history(limit=limit)
+
+def get_todays_stock_movements_count():
+    """
+    Cuenta los movimientos de stock realizados hoy.
+    Returns:
+        int: Número de movimientos de hoy, o None si hay error.
+    """
+    if not db: return None
+    today_start = datetime.datetime.now().strftime('%Y-%m-%d 00:00:00')
+    today_end = datetime.datetime.now().strftime('%Y-%m-%d 23:59:59')
+    
+    query = """
+    SELECT COUNT(*) as count 
+    FROM MovimientoStock 
+    WHERE fecha_hora BETWEEN %s AND %s
+    """
+    result = db.fetch_one(query, (today_start, today_end))
+    if result:
+        return result.get('count', 0)
+    return None
 
 def get_all_ingredients_list():
     """

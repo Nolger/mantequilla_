@@ -9,14 +9,15 @@ from .table_view import TableView
 from .order_taking_view import OrderTakingView
 from .stock_management_view import StockManagementView
 from .supplier_view import SupplierView
-from .admin_home_tab_view import AdminHomeTabView # <--- AÑADIR ESTA IMPORTACIÓN
+from .admin_home_tab_view import AdminHomeTabView
+from .order_history_view import OrderHistoryView
 
 class AdminDashboardView(tk.Tk):
     def __init__(self, admin_user_info):
         super().__init__()
 
         # Comprobación crítica de módulos (incluyendo la nueva)
-        if not all([EmployeeView, TableView, OrderTakingView, StockManagementView, SupplierView, DishRecipeManagementView, AdminHomeTabView]): # <--- AÑADIR AdminHomeTabView
+        if not all([EmployeeView, TableView, OrderTakingView, StockManagementView, SupplierView, DishRecipeManagementView, AdminHomeTabView, OrderHistoryView]):
             self.withdraw() 
             messagebox.showerror("Error Crítico de Módulo", 
                                  "Uno o más módulos de vista esenciales no están disponibles.\n" +
@@ -64,6 +65,16 @@ class AdminDashboardView(tk.Tk):
             employee_view_instance.pack(expand=True, fill=tk.BOTH)
         else:
             ttk.Label(self.employee_management_tab, text="Error al cargar la vista de empleados.").pack()
+
+        # --- Pestaña NUEVA: Historial de Comandas ---
+        self.order_history_management_tab = ttk.Frame(self.notebook, padding="5")
+        self.notebook.add(self.order_history_management_tab, text='Historial de Comandas')
+        
+        if OrderHistoryView:
+            order_history_view_instance = OrderHistoryView(self.order_history_management_tab)
+            order_history_view_instance.pack(expand=True, fill=tk.BOTH)
+        else:
+            ttk.Label(self.order_history_management_tab, text="Error al cargar la vista de historial de comandas.").pack()
 
         # --- Pestaña de Gestión de Mesas ---
         self.table_management_tab = ttk.Frame(self.notebook, padding="5")
@@ -140,8 +151,8 @@ def main_test(admin_info_for_test=None):
             "apellido": "Tester",
             "rol": "administrador"
         }
-    # Actualiza la comprobación para incluir AdminHomeTabView
-    if not all([EmployeeView, TableView, OrderTakingView, StockManagementView, DishRecipeManagementView, SupplierView, AdminHomeTabView]):
+    # Actualiza la comprobación para incluir AdminHomeTabView y OrderHistoryView
+    if not all([EmployeeView, TableView, OrderTakingView, StockManagementView, DishRecipeManagementView, SupplierView, AdminHomeTabView, OrderHistoryView]):
         root_error = tk.Tk()
         root_error.withdraw()
         messagebox.showerror("Error Crítico de Módulo", 

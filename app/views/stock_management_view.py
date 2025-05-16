@@ -1,6 +1,7 @@
 # app/views/stock_management_view.py
 import tkinter as tk
 from tkinter import ttk, messagebox, simpledialog
+import datetime # Added for date validation
 
 # Ajusta las rutas de importación según tu estructura de proyecto.
 try:
@@ -36,12 +37,20 @@ class StockManagementView(ttk.Frame):
         # Variables para el formulario de ajuste de stock de Ingrediente
         self.selected_ingredient_id_stock_var = tk.StringVar() # Para el ingrediente a ajustar
         self.stock_adjustment_quantity_var = tk.DoubleVar(value=0.0)
-        self.stock_adjustment_reason_var = tk.StringVar(value="Recepción de Proveedor")
+        self.stock_adjustment_reason_var = tk.StringVar(value="")
+        self.stock_adjustment_type_var = tk.StringVar(value="INGRESO") # Para el tipo de ajuste
+
+        # Variables para el filtro de historial
+        self.filter_hist_ingr_id_var = tk.StringVar()
+        self.filter_hist_start_date_var = tk.StringVar()
+        self.filter_hist_end_date_var = tk.StringVar()
+        self.filter_hist_type_var = tk.StringVar()
 
         self._create_layout()
         self._load_products_to_treeview()
         self._load_ingredients_to_treeview()
         self._clear_product_form_fields()
+        self._load_stock_movements_history() # Cargar historial al inicio
 
     def _create_layout(self):
         # Notebook para organizar las secciones de Productos e Ingredientes
@@ -57,6 +66,11 @@ class StockManagementView(ttk.Frame):
         self.ingredients_tab = ttk.Frame(self.notebook, padding="10")
         self.notebook.add(self.ingredients_tab, text='Ingredientes (Stock Cocina)')
         self._create_ingredients_tab_content(self.ingredients_tab)
+
+        # --- Pestaña NUEVA: Historial de Movimientos de Stock ---
+        self.stock_history_tab = ttk.Frame(self.notebook, padding="10")
+        self.notebook.add(self.stock_history_tab, text='Historial de Movimientos')
+        self._create_stock_history_tab_content(self.stock_history_tab)
 
     # --- Contenido de la Pestaña de Productos ---
     def _create_products_tab_content(self, parent_tab_frame):
@@ -171,17 +185,16 @@ class StockManagementView(ttk.Frame):
 
     # --- Contenido de la Pestaña de Ingredientes (Stock Cocina) ---
     def _create_ingredients_tab_content(self, parent_tab_frame):
-        # PanedWindow para dividir lista de ingredientes y formulario de ajuste
         ingredients_pw = ttk.PanedWindow(parent_tab_frame, orient=tk.HORIZONTAL)
         ingredients_pw.pack(expand=True, fill=tk.BOTH)
 
         ing_list_panel = ttk.Frame(ingredients_pw, padding=5)
-        ingredients_pw.add(ing_list_panel, weight=2) # Más espacio para la lista
+        ingredients_pw.add(ing_list_panel, weight=2)
         self._create_ingredient_list_treeview(ing_list_panel)
 
         ing_actions_panel = ttk.Frame(ingredients_pw, padding=5)
         ingredients_pw.add(ing_actions_panel, weight=1)
-        self._create_ingredient_stock_adjustment_form(ing_actions_panel)
+        self._create_ingredient_stock_adjustment_form_v2(ing_actions_panel)
         
     def _create_ingredient_list_treeview(self, parent_frame):
         tree_frame = ttk.LabelFrame(parent_frame, text="Stock de Ingredientes para Cocina", padding=(10,5))
@@ -209,8 +222,8 @@ class StockManagementView(ttk.Frame):
         self.ingredients_treeview.bind("<<TreeviewSelect>>", self._on_ingredient_selected_for_adjustment)
 
 
-    def _create_ingredient_stock_adjustment_form(self, parent_frame):
-        adj_form_frame = ttk.LabelFrame(parent_frame, text="Ajustar Stock de Ingrediente", padding=(15,10))
+    def _create_ingredient_stock_adjustment_form_v2(self, parent_frame):
+        adj_form_frame = ttk.LabelFrame(parent_frame, text="Registrar Movimiento de Stock", padding=(15,10))
         adj_form_frame.pack(pady=10, fill=tk.X)
         adj_form_frame.columnconfigure(1, weight=1)
 
@@ -218,18 +231,90 @@ class StockManagementView(ttk.Frame):
         self.selected_ingredient_label = ttk.Label(adj_form_frame, textvariable=self.selected_ingredient_id_stock_var, font=("Arial", 10, "bold"))
         self.selected_ingredient_label.grid(row=0, column=1, padx=5, pady=5, sticky="ew")
 
-        ttk.Label(adj_form_frame, text="Cantidad a Ajustar:").grid(row=1, column=0, padx=5, pady=5, sticky="w")
+        # Tipo de Movimiento
+        ttk.Label(adj_form_frame, text="Tipo Movimiento:").grid(row=1, column=0, padx=5, pady=5, sticky="w")
+        self.stock_adj_type_combobox = ttk.Combobox(adj_form_frame, textvariable=self.stock_adjustment_type_var,
+                                                    values=["INGRESO", "AJUSTE_MANUAL_POSITIVO", "AJUSTE_MANUAL_NEGATIVO", "MERMA"], # Consumo se registra desde comandas
+                                                    state="readonly", width=33)
+        self.stock_adj_type_combobox.grid(row=1, column=1, padx=5, pady=5, sticky="ew")
+        self.stock_adj_type_combobox.set("INGRESO") # Default
+
+        ttk.Label(adj_form_frame, text="Cantidad (+/-):").grid(row=2, column=0, padx=5, pady=5, sticky="w")
         self.stock_adj_qty_spinbox = ttk.Spinbox(adj_form_frame, from_=-10000.0, to=10000.0, increment=0.1, format="%.2f",
                                                 textvariable=self.stock_adjustment_quantity_var, width=33)
-        self.stock_adj_qty_spinbox.grid(row=1, column=1, padx=5, pady=5, sticky="ew")
+        self.stock_adj_qty_spinbox.grid(row=2, column=1, padx=5, pady=5, sticky="ew")
         
-        ttk.Label(adj_form_frame, text="Motivo/Razón:").grid(row=2, column=0, padx=5, pady=5, sticky="w")
+        ttk.Label(adj_form_frame, text="Motivo/Descripción:").grid(row=3, column=0, padx=5, pady=5, sticky="w")
         self.stock_adj_reason_entry = ttk.Entry(adj_form_frame, textvariable=self.stock_adjustment_reason_var, width=35)
-        self.stock_adj_reason_entry.grid(row=2, column=1, padx=5, pady=5, sticky="ew")
+        self.stock_adj_reason_entry.grid(row=3, column=1, padx=5, pady=5, sticky="ew")
+        
+        ttk.Label(adj_form_frame, text="Ref. Origen (ej. OC-XXX):").grid(row=4, column=0, padx=5, pady=5, sticky="w")
+        self.stock_adj_ref_entry = ttk.Entry(adj_form_frame, width=35) # Nueva variable si es necesario
+        self.stock_adj_ref_entry.grid(row=4, column=1, padx=5, pady=5, sticky="ew")
 
-        self.adjust_stock_button = ttk.Button(adj_form_frame, text="Aplicar Ajuste de Stock", command=self._apply_stock_adjustment, state=tk.DISABLED)
-        self.adjust_stock_button.grid(row=3, column=0, columnspan=2, pady=10, padx=5)
+        self.apply_stock_movement_button = ttk.Button(adj_form_frame, text="Aplicar Movimiento", command=self._apply_stock_movement_v2, state=tk.DISABLED)
+        self.apply_stock_movement_button.grid(row=5, column=0, columnspan=2, pady=10, padx=5)
 
+    def _create_stock_history_tab_content(self, parent_tab_frame):
+        # Frame para filtros
+        filter_frame = ttk.LabelFrame(parent_tab_frame, text="Filtros de Historial", padding="10")
+        filter_frame.pack(fill=tk.X, pady=5, padx=5)
+        
+        ttk.Label(filter_frame, text="ID Ingrediente:").grid(row=0, column=0, padx=3, pady=3, sticky="w")
+        self.filter_hist_ingr_entry = ttk.Entry(filter_frame, textvariable=self.filter_hist_ingr_id_var, width=15)
+        self.filter_hist_ingr_entry.grid(row=0, column=1, padx=3, pady=3)
+        
+        ttk.Label(filter_frame, text="Tipo Mov:").grid(row=0, column=2, padx=3, pady=3, sticky="w")
+        self.filter_hist_type_combobox = ttk.Combobox(filter_frame, textvariable=self.filter_hist_type_var, width=20,
+                                                       values=["", "INGRESO", "CONSUMO_COMANDA", "MERMA", "AJUSTE_MANUAL_POSITIVO", "AJUSTE_MANUAL_NEGATIVO", "INVENTARIO_INICIAL"])
+        self.filter_hist_type_combobox.grid(row=0, column=3, padx=3, pady=3)
+
+
+        ttk.Label(filter_frame, text="Fecha Desde (YYYY-MM-DD):").grid(row=1, column=0, padx=3, pady=3, sticky="w")
+        self.filter_hist_start_date_entry = ttk.Entry(filter_frame, textvariable=self.filter_hist_start_date_var, width=15)
+        self.filter_hist_start_date_entry.grid(row=1, column=1, padx=3, pady=3)
+
+        ttk.Label(filter_frame, text="Fecha Hasta (YYYY-MM-DD):").grid(row=1, column=2, padx=3, pady=3, sticky="w")
+        self.filter_hist_end_date_entry = ttk.Entry(filter_frame, textvariable=self.filter_hist_end_date_var, width=15)
+        self.filter_hist_end_date_entry.grid(row=1, column=3, padx=3, pady=3)
+
+        apply_filter_button = ttk.Button(filter_frame, text="Aplicar Filtros", command=self._load_stock_movements_history)
+        apply_filter_button.grid(row=0, column=4, rowspan=2, padx=10, pady=3, sticky="ns")
+        clear_filter_button = ttk.Button(filter_frame, text="Limpiar Filtros", command=self._clear_history_filters)
+        clear_filter_button.grid(row=0, column=5, rowspan=2, padx=10, pady=3, sticky="ns")
+
+
+        # Treeview para el historial
+        history_tree_frame = ttk.LabelFrame(parent_tab_frame, text="Historial de Movimientos", padding="10")
+        history_tree_frame.pack(fill=tk.BOTH, expand=True, pady=5, padx=5)
+
+        hist_cols = ("fecha_hora", "id_ingrediente", "nombre_ingrediente", "tipo_movimiento", "cantidad_cambio", "cantidad_nueva", "motivo", "empleado", "ref_origen")
+        self.stock_history_treeview = ttk.Treeview(history_tree_frame, columns=hist_cols, show="headings", height=15)
+        
+        self.stock_history_treeview.heading("fecha_hora", text="Fecha y Hora")
+        self.stock_history_treeview.heading("id_ingrediente", text="ID Ingr.")
+        self.stock_history_treeview.heading("nombre_ingrediente", text="Ingrediente")
+        self.stock_history_treeview.heading("tipo_movimiento", text="Tipo")
+        self.stock_history_treeview.heading("cantidad_cambio", text="Cambio")
+        self.stock_history_treeview.heading("cantidad_nueva", text="Stock Final")
+        self.stock_history_treeview.heading("motivo", text="Motivo/Desc.")
+        self.stock_history_treeview.heading("empleado", text="Responsable")
+        self.stock_history_treeview.heading("ref_origen", text="Ref. Origen")
+
+        self.stock_history_treeview.column("fecha_hora", width=140)
+        self.stock_history_treeview.column("id_ingrediente", width=80)
+        self.stock_history_treeview.column("nombre_ingrediente", width=150)
+        self.stock_history_treeview.column("tipo_movimiento", width=120)
+        self.stock_history_treeview.column("cantidad_cambio", width=70, anchor="e")
+        self.stock_history_treeview.column("cantidad_nueva", width=80, anchor="e")
+        self.stock_history_treeview.column("motivo", width=200)
+        self.stock_history_treeview.column("empleado", width=120)
+        self.stock_history_treeview.column("ref_origen", width=100)
+
+        hist_scrollbar = ttk.Scrollbar(history_tree_frame, orient=tk.VERTICAL, command=self.stock_history_treeview.yview)
+        self.stock_history_treeview.configure(yscrollcommand=hist_scrollbar.set)
+        self.stock_history_treeview.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        hist_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
 
     # --- Lógica de Carga y Limpieza ---
     def _load_products_to_treeview(self):
@@ -263,7 +348,7 @@ class StockManagementView(ttk.Frame):
         elif ingredients is None:
             messagebox.showerror("Error", "No se pudieron cargar los ingredientes de stock.")
         self.selected_ingredient_id_stock_var.set("") # Limpiar selección
-        self.adjust_stock_button.config(state=tk.DISABLED)
+        self.apply_stock_movement_button.config(state=tk.DISABLED)
 
 
     def _clear_product_form_fields(self):
@@ -286,8 +371,12 @@ class StockManagementView(ttk.Frame):
     def _clear_ingredient_adjustment_form(self):
         self.selected_ingredient_id_stock_var.set("")
         self.stock_adjustment_quantity_var.set(0.0)
-        self.stock_adjustment_reason_var.set("Recepción de Proveedor")
-        self.adjust_stock_button.config(state=tk.DISABLED)
+        self.stock_adjustment_reason_var.set("")
+        self.stock_adj_type_combobox.set("INGRESO")
+        if hasattr(self, 'stock_adj_ref_entry'): # Verificar si existe
+            self.stock_adj_ref_entry.delete(0, tk.END)
+
+        self.apply_stock_movement_button.config(state=tk.DISABLED)
         if self.ingredients_treeview.selection():
             self.ingredients_treeview.selection_remove(self.ingredients_treeview.selection()[0])
 
@@ -318,14 +407,16 @@ class StockManagementView(ttk.Frame):
         selected_items = self.ingredients_treeview.selection()
         if not selected_items:
             self.selected_ingredient_id_stock_var.set("")
-            self.adjust_stock_button.config(state=tk.DISABLED)
+            self.apply_stock_movement_button.config(state=tk.DISABLED)
             return
         
-        ingredient_id = self.ingredients_treeview.selection()[0] # iid es id_ingrediente
+        ingredient_id = self.ingredients_treeview.selection()[0] 
         self.selected_ingredient_id_stock_var.set(ingredient_id)
-        self.adjust_stock_button.config(state=tk.NORMAL)
-        self.stock_adjustment_quantity_var.set(0.0) # Resetear cantidad
-        self.stock_adjustment_reason_var.set("Recepción de Proveedor") # Resetear razón
+        self.apply_stock_movement_button.config(state=tk.NORMAL)
+        self.stock_adjustment_quantity_var.set(0.0) 
+        self.stock_adjustment_reason_var.set("") # Limpiar motivo para que el usuario lo ingrese
+        self.stock_adj_type_combobox.set("INGRESO") # Default a ingreso
+        self.stock_adj_ref_entry.delete(0, tk.END) # Limpiar campo de referencia
 
 
     def _validate_product_inputs(self):
@@ -393,72 +484,152 @@ class StockManagementView(ttk.Frame):
         
         product_id = self.products_treeview.selection()[0]
         
-        if stock_model.get_ingredient_by_id(product_id): # Verificar si ya es ingrediente
+        if stock_model.get_ingredient_by_id(product_id):
             messagebox.showinfo("Información", f"El producto '{product_id}' ya está registrado como ingrediente.")
-            self.notebook.select(self.ingredients_tab) # Cambiar a la pestaña de ingredientes
-            # Seleccionar el ingrediente en el treeview de ingredientes
-            for item_id in self.ingredients_treeview.get_children():
-                if self.ingredients_treeview.item(item_id, "values")[0] == product_id:
-                    self.ingredients_treeview.selection_set(item_id)
-                    self.ingredients_treeview.focus(item_id)
-                    self._on_ingredient_selected_for_adjustment() # Cargar para ajuste
+            self.notebook.select(self.ingredients_tab)
+            for item_id_tree in self.ingredients_treeview.get_children(): # Renombrada variable de bucle
+                if self.ingredients_treeview.item(item_id_tree, "values")[0] == product_id:
+                    self.ingredients_treeview.selection_set(item_id_tree)
+                    self.ingredients_treeview.focus(item_id_tree)
+                    self._on_ingredient_selected_for_adjustment()
                     break
             return
 
         initial_qty_str = simpledialog.askstring("Stock Inicial", 
                                                  f"Ingrese la cantidad inicial de stock para el ingrediente '{product_id}':",
-                                                 parent=self)
+                                                 parent=self, initialvalue="0.0")
         if initial_qty_str is not None:
             try:
                 initial_qty = float(initial_qty_str)
-                if initial_qty < 0:
-                    messagebox.showerror("Error", "La cantidad inicial no puede ser negativa.")
-                    return
+                # No es necesario que initial_qty sea > 0, puede ser 0.
                 
+                id_empleado_actual = None # Placeholder, idealmente vendría del usuario logueado
+                # if hasattr(self, 'logged_in_employee_info') and self.logged_in_employee_info:
+                #     id_empleado_actual = self.logged_in_employee_info.get('id_empleado')
+
                 if stock_model:
-                    result = stock_model.add_or_update_ingredient_as_product(product_id, initial_qty)
-                    if result is not None:
+                    result = stock_model.add_or_update_ingredient_as_product(product_id, initial_qty, id_empleado=id_empleado_actual)
+                    if result is not None: # Devuelve el id_ingrediente
                         messagebox.showinfo("Éxito", f"Producto '{product_id}' marcado como ingrediente con stock inicial de {initial_qty}.")
-                        self._load_ingredients_to_treeview() # Recargar lista de ingredientes
-                        self.notebook.select(self.ingredients_tab) # Cambiar a la pestaña de ingredientes
+                        self._load_ingredients_to_treeview()
+                        self._load_stock_movements_history() # Actualizar historial
+                        self.notebook.select(self.ingredients_tab)
                     else:
                         messagebox.showerror("Error", f"No se pudo marcar '{product_id}' como ingrediente.")
             except ValueError:
                 messagebox.showerror("Error de Entrada", "La cantidad inicial debe ser un número.")
 
 
-    def _apply_stock_adjustment(self):
+    def _apply_stock_movement_v2(self): # MÉTODO MODIFICADO/NUEVO
         ingredient_id = self.selected_ingredient_id_stock_var.get()
         if not ingredient_id:
-            messagebox.showwarning("Sin Selección", "Seleccione un ingrediente de la lista para ajustar su stock.")
+            messagebox.showwarning("Sin Selección", "Seleccione un ingrediente.")
             return
         
         try:
             quantity_adj = self.stock_adjustment_quantity_var.get()
-        except tk.TclError:
-            messagebox.showerror("Error de Cantidad", "La cantidad de ajuste no es válida.")
-            return
+        except tk.TclError: messagebox.showerror("Error", "Cantidad inválida."); return
+
+        mov_type = self.stock_adjustment_type_var.get()
+        if not mov_type: messagebox.showerror("Error", "Seleccione un tipo de movimiento."); return
         
-        reason = self.stock_adjustment_reason_var.get().strip()
-        if not reason:
-            messagebox.showerror("Error de Motivo", "Por favor, ingrese un motivo para el ajuste de stock.")
-            return
+        reason_desc = self.stock_adjustment_reason_var.get().strip()
+        if not reason_desc: messagebox.showerror("Error", "Ingrese una descripción/motivo."); return
+        
+        ref_origen = self.stock_adj_ref_entry.get().strip() or None
+        
+        id_empleado_actual = None # Placeholder
+        # if hasattr(self, 'logged_in_employee_info') and self.logged_in_employee_info:
+        #     id_empleado_actual = self.logged_in_employee_info.get('id_empleado')
 
         if stock_model:
-            is_deduction = quantity_adj < 0
-            actual_change_amount = abs(quantity_adj)
+            # Determinar si es deducción basado en el tipo o en el signo de la cantidad
+            is_deduction = False
+            actual_change_amount = quantity_adj
+            
+            if mov_type == "AJUSTE_MANUAL_NEGATIVO" or mov_type == "MERMA":
+                is_deduction = True
+                actual_change_amount = abs(quantity_adj) # Asegurar que sea positivo para la lógica del modelo
+                if quantity_adj > 0: # Si el usuario puso positivo para un tipo negativo, advertir o corregir
+                    messagebox.showwarning("Advertencia Cantidad", f"Para '{mov_type}', la cantidad se interpretará como una deducción ({abs(quantity_adj)}).")
+            elif mov_type == "INGRESO" or mov_type == "AJUSTE_MANUAL_POSITIVO":
+                is_deduction = False
+                actual_change_amount = abs(quantity_adj)
+                if quantity_adj < 0:
+                     messagebox.showwarning("Advertencia Cantidad", f"Para '{mov_type}', la cantidad se interpretará como un aumento ({abs(quantity_adj)}).")
+            else: # Si es un tipo que puede ser +/-, el signo de quantity_adj decide
+                 is_deduction = quantity_adj < 0
+                 actual_change_amount = abs(quantity_adj)
 
-            result = stock_model.update_ingredient_stock(ingredient_id, actual_change_amount, is_deduction, reason)
+
+            result = stock_model.update_ingredient_stock(
+                ingredient_id, actual_change_amount, is_deduction,
+                reason_type=mov_type, custom_reason_desc=reason_desc,
+                id_reference=ref_origen, id_employee=id_empleado_actual
+            )
+            
             if result is not None and result > 0:
-                messagebox.showinfo("Éxito", f"Stock para '{ingredient_id}' ajustado correctamente.")
-            elif result == 0 and not is_deduction: # Podría ser 0 si se añade 0
-                 messagebox.showinfo("Información", f"No se realizó ningún cambio en el stock para '{ingredient_id}'.")
-            else: # result es None (ej. stock insuficiente para deducción) o error
-                # El modelo ya imprime el error específico (ej. stock insuficiente)
-                messagebox.showerror("Error de Ajuste", f"No se pudo ajustar el stock para '{ingredient_id}'. Verifique la consola para detalles.")
+                messagebox.showinfo("Éxito", f"Movimiento de stock para '{ingredient_id}' registrado.")
+            elif result == 0 and not is_deduction:
+                 messagebox.showinfo("Información", "No se realizó cambio en el stock (cantidad cero).")
+            else:
+                messagebox.showerror("Error", f"No se pudo registrar el movimiento para '{ingredient_id}'. Ver consola.")
             
             self._load_ingredients_to_treeview()
-            self._clear_ingredient_adjustment_form()
+            self._load_stock_movements_history() # Actualizar historial
+            self._clear_ingredient_adjustment_form() # Limpiar el formulario de ajuste
+    
+    def _load_stock_movements_history(self):
+        if not stock_model: return
+        for item in self.stock_history_treeview.get_children():
+            self.stock_history_treeview.delete(item)
+
+        ingr_id = self.filter_hist_ingr_id_var.get().strip() or None
+        start_d = self.filter_hist_start_date_var.get().strip() or None
+        end_d = self.filter_hist_end_date_var.get().strip() or None
+        mov_type = self.filter_hist_type_var.get().strip() or None
+        
+        # Validar fechas si se ingresan
+        if start_d:
+            try: datetime.datetime.strptime(start_d, "%Y-%m-%d")
+            except ValueError: messagebox.showerror("Error Filtro", "Formato de 'Fecha Desde' inválido. Use YYYY-MM-DD."); return
+        if end_d:
+            try: datetime.datetime.strptime(end_d, "%Y-%m-%d"); end_d += " 23:59:59" # Incluir todo el día
+            except ValueError: messagebox.showerror("Error Filtro", "Formato de 'Fecha Hasta' inválido. Use YYYY-MM-DD."); return
+
+
+        history_data = stock_model.get_stock_movements_history(
+            ingredient_id=ingr_id,
+            start_date=start_d,
+            end_date=end_d,
+            movement_type=mov_type,
+            limit=200 # Limitar la cantidad de registros mostrados por defecto
+        )
+        if history_data:
+            for mov in history_data:
+                emp_name = f"{mov.get('nombre_empleado','')} {mov.get('apellido_empleado','')}".strip()
+                self.stock_history_treeview.insert("", tk.END, values=(
+                    mov.get('fecha_hora', '').strftime('%Y-%m-%d %H:%M:%S') if mov.get('fecha_hora') else '',
+                    mov.get('id_ingrediente', ''),
+                    mov.get('nombre_ingrediente', ''),
+                    mov.get('tipo_movimiento', ''),
+                    f"{mov.get('cantidad_cambio', 0.0):.3f}",
+                    f"{mov.get('cantidad_nueva', 0.0):.3f}",
+                    mov.get('descripcion_motivo', ''),
+                    emp_name or mov.get('id_empleado_responsable', 'N/A'), # Mostrar ID si no hay nombre
+                    mov.get('id_referencia_origen', '')
+                ))
+        elif history_data == []:
+            messagebox.showinfo("Historial Vacío", "No se encontraron movimientos de stock con los filtros aplicados.")
+        else: # None indica error
+            messagebox.showerror("Error", "No se pudo cargar el historial de movimientos de stock.")
+            
+    def _clear_history_filters(self):
+        self.filter_hist_ingr_id_var.set("")
+        self.filter_hist_start_date_var.set("")
+        self.filter_hist_end_date_var.set("")
+        self.filter_hist_type_var.set("")
+        self._load_stock_movements_history() # Recargar con filtros limpios
 
 
 # --- Para probar esta vista de forma aislada ---

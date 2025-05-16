@@ -15,6 +15,84 @@ from . import menu_model   # '.' Se refiere al paquete actual ('models')
 # que te proporcioné en la respuesta anterior.
 # Solo se muestra el esqueleto de las funciones para brevedad, pero necesitas el cuerpo completo.
 
+
+def get_orders_history(start_date=None, end_date=None, table_id=None, 
+                       employee_id=None, customer_id=None, order_status=None, limit=100):
+    """
+    Obtiene un historial de comandas con filtros opcionales.
+    """
+    if not db: return None
+    
+    query_base = """
+    SELECT c.id_comanda, c.fecha_hora_apertura, c.fecha_hora_cierre, 
+           m.id_mesa, m.ubicacion as ubicacion_mesa,
+           e.nombre as nombre_mesero, e.apellido as apellido_mesero,
+           cl.nombre as nombre_cliente,
+           c.cantidad_personas, c.estado_comanda, c.observaciones
+    FROM Comanda c
+    JOIN Mesa m ON c.id_mesa = m.id_mesa
+    JOIN Empleados e ON c.id_empleado_mesero = e.id_empleado
+    LEFT JOIN Cliente cl ON c.id_cliente = cl.id_cliente 
+    """ # LEFT JOIN para Cliente por si es nulo
+    
+    conditions = []
+    params = []
+
+    if start_date:
+        conditions.append("c.fecha_hora_apertura >= %s")
+        params.append(start_date)
+    if end_date: # Asegurar que end_date incluya todo el día
+        conditions.append("c.fecha_hora_apertura <= %s")
+        params.append(end_date + " 23:59:59" if isinstance(end_date, str) else end_date)
+    if table_id:
+        conditions.append("c.id_mesa = %s")
+        params.append(table_id)
+    if employee_id:
+        conditions.append("c.id_empleado_mesero = %s")
+        params.append(employee_id)
+    if customer_id:
+        conditions.append("c.id_cliente = %s")
+        params.append(customer_id)
+    if order_status:
+        conditions.append("c.estado_comanda = %s")
+        params.append(order_status)
+        
+    if conditions:
+        query_base += " WHERE " + " AND ".join(conditions)
+        
+    query_base += " ORDER BY c.fecha_hora_apertura DESC, c.id_comanda DESC"
+    if limit:
+        query_base += " LIMIT %s"
+        params.append(limit)
+        
+    return db.fetch_all(query_base, tuple(params))
+
+def get_dishes_for_kitchen_view():
+    """
+    Obtiene los detalles de los platos que están pendientes o en preparación para la cocina.
+    Devuelve id_plato para poder buscar la receta.
+    """
+    if not db: return None
+    query = """
+    SELECT 
+        dc.id_detalle_comanda, 
+        dc.id_comanda,
+        dc.id_plato,  -- <--- AÑADIDO para buscar receta
+        p.nombre_plato, 
+        dc.cantidad, 
+        dc.estado_plato, 
+        dc.observaciones_plato,
+        dc.hora_pedido,
+        co.id_mesa -- Opcional, para saber de qué mesa es el pedido
+    FROM DetalleComanda dc
+    JOIN Plato p ON dc.id_plato = p.id_plato
+    JOIN Comanda co ON dc.id_comanda = co.id_comanda -- Para obtener id_mesa
+    WHERE dc.estado_plato IN ('pendiente', 'en preparacion')
+    ORDER BY dc.hora_pedido ASC, dc.id_comanda ASC, dc.id_detalle_comanda ASC; 
+    """
+    # Ordenar por hora de pedido, luego por comanda, para priorizar los más antiguos
+    return db.fetch_all(query)
+
 def generate_order_id():
     # ... (código de la función)
     now = datetime.datetime.now()

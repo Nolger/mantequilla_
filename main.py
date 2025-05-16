@@ -9,6 +9,7 @@ try:
     from app.views import login_view
     from app.views import admin_dashboard_view
     from app.views import employee_dashboard_view
+    from app.views import cook_dashboard_view
 except ImportError as e:
     # Manejo de error si las importaciones fallan al inicio
     root_error = tk.Tk()
@@ -53,19 +54,27 @@ class MainApplication:
         rol = self.current_user_info.get("rol")
         
         dashboard_to_open = None
+        
         if rol == "administrador":
             if admin_dashboard_view.AdminDashboardView:
                 dashboard_to_open = admin_dashboard_view.AdminDashboardView(self.current_user_info)
             else:
                 messagebox.showerror("Error de Carga", "No se pudo cargar el Dashboard de Administrador.")
-        elif rol in ["empleado", "mesero", "cocinero"]: # Otros roles de empleado
+        
+        elif rol == "cocinero": # <--- NUEVA CONDICIÓN
+            if cook_dashboard_view.CookDashboardView:
+                dashboard_to_open = cook_dashboard_view.CookDashboardView(self.current_user_info)
+            else:
+                messagebox.showerror("Error de Carga", "No se pudo cargar el Dashboard de Cocina.")
+        
+        elif rol in ["empleado", "mesero"]: # Otros roles de empleado (sin dashboard de cocina)
             if employee_dashboard_view.EmployeeDashboardView:
                 dashboard_to_open = employee_dashboard_view.EmployeeDashboardView(self.current_user_info)
             else:
                 messagebox.showerror("Error de Carga", "No se pudo cargar el Dashboard de Empleado.")
         else:
             messagebox.showerror("Error de Rol", f"Rol '{rol}' no reconocido. Contacte al administrador.")
-            self.show_login_screen() # Vuelve a mostrar el login
+            self.show_login_screen() 
             return
 
         if dashboard_to_open:
