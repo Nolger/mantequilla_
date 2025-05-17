@@ -237,6 +237,26 @@
    'C:\\Users\\Nolger '
    'Rodriguez\\AppData\\Local\\Programs\\Python\\Python313\\Lib\\dis.py',
    'PYMODULE'),
+  ('dotenv',
+   'C:\\Users\\Nolger '
+   'Rodriguez\\Documents\\mantequilla\\.venv\\Lib\\site-packages\\dotenv\\__init__.py',
+   'PYMODULE'),
+  ('dotenv.ipython',
+   'C:\\Users\\Nolger '
+   'Rodriguez\\Documents\\mantequilla\\.venv\\Lib\\site-packages\\dotenv\\ipython.py',
+   'PYMODULE'),
+  ('dotenv.main',
+   'C:\\Users\\Nolger '
+   'Rodriguez\\Documents\\mantequilla\\.venv\\Lib\\site-packages\\dotenv\\main.py',
+   'PYMODULE'),
+  ('dotenv.parser',
+   'C:\\Users\\Nolger '
+   'Rodriguez\\Documents\\mantequilla\\.venv\\Lib\\site-packages\\dotenv\\parser.py',
+   'PYMODULE'),
+  ('dotenv.variables',
+   'C:\\Users\\Nolger '
+   'Rodriguez\\Documents\\mantequilla\\.venv\\Lib\\site-packages\\dotenv\\variables.py',
+   'PYMODULE'),
   ('email',
    'C:\\Users\\Nolger '
    'Rodriguez\\AppData\\Local\\Programs\\Python\\Python313\\Lib\\email\\__init__.py',

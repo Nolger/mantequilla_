@@ -1,6 +1,9 @@
 import mysql.connector
 from mysql.connector import errorcode
 import os # Para leer variables de entorno (opcional)
+from dotenv import load_dotenv
+
+load_dotenv()
 
 # --- CONFIGURACIÓN DE LA BASE DE DATOS ---
 # Intenta leer desde variables de entorno, o usa valores por defecto.
